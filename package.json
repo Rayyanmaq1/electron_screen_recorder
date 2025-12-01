@@ -1,0 +1,16 @@
+{
+  "name": "electron_screen_recorder",
+  "version": "1.0.0",
+  "description": "A screen recorder application built with Electron.js",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": ["electron", "screen-recorder", "desktop", "video"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^27.1.0"
+  }
+}

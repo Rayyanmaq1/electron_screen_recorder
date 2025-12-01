@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' blob:">
+  <title>Electron Screen Recorder</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      font-size: 1.8rem;
+      text-align: center;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 600;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #selectSource {
+      background: #4a69bd;
+      color: white;
+    }
+
+    #selectSource:hover:not(:disabled) {
+      background: #3c5aa6;
+    }
+
+    #startBtn {
+      background: #27ae60;
+      color: white;
+    }
+
+    #startBtn:hover:not(:disabled) {
+      background: #219a52;
+    }
+
+    #stopBtn {
+      background: #e74c3c;
+      color: white;
+    }
+
+    #stopBtn:hover:not(:disabled) {
+      background: #c0392b;
+    }
+
+    #saveBtn {
+      background: #9b59b6;
+      color: white;
+    }
+
+    #saveBtn:hover:not(:disabled) {
+      background: #8e44ad;
+    }
+
+    .video-container {
+      width: 100%;
+      max-width: 720px;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    video {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .status {
+      padding: 10px 20px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      margin-bottom: 20px;
+    }
+
+    .source-selector {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .source-selector.active {
+      display: flex;
+    }
+
+    .source-list {
+      background: #1a1a2e;
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 600px;
+      max-height: 80vh;
+      overflow-y: auto;
+      width: 90%;
+    }
+
+    .source-list h2 {
+      margin-bottom: 15px;
+      text-align: center;
+    }
+
+    .source-item {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s;
+      margin-bottom: 10px;
+    }
+
+    .source-item:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .source-item img {
+      width: 120px;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 4px;
+      margin-right: 15px;
+    }
+
+    .source-item span {
+      flex: 1;
+      font-size: 0.9rem;
+    }
+
+    .close-selector {
+      margin-top: 15px;
+      width: 100%;
+      background: #e74c3c;
+    }
+
+    .recording-indicator {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      color: #e74c3c;
+      font-weight: bold;
+    }
+
+    .recording-indicator.active {
+      display: flex;
+    }
+
+    .recording-dot {
+      width: 12px;
+      height: 12px;
+      background: #e74c3c;
+      border-radius: 50%;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Screen Recorder</h1>
+  
+  <div class="status" id="status">Select a video source to begin</div>
+  
+  <div class="recording-indicator" id="recordingIndicator">
+    <div class="recording-dot"></div>
+    <span>Recording...</span>
+  </div>
+  
+  <div class="controls">
+    <button id="selectSource">Select Source</button>
+    <button id="startBtn" disabled>Start Recording</button>
+    <button id="stopBtn" disabled>Stop Recording</button>
+    <button id="saveBtn" disabled>Save Recording</button>
+  </div>
+  
+  <div class="video-container">
+    <video id="preview" autoplay muted></video>
+  </div>
+  
+  <div class="source-selector" id="sourceSelector">
+    <div class="source-list">
+      <h2>Select a Source</h2>
+      <div id="sourceList"></div>
+      <button class="close-selector" id="closeSelector">Cancel</button>
+    </div>
+  </div>
+  
+  <script src="render.js"></script>
+</body>
+</html>
