@@ -1,22 +1,69 @@
 let desktopCapturer, Menu;
 let mediaRecorder;
 let recordedChunks = [];
+let timerInterval;
+let recordingStartTime;
 
 // Wait for DOM to be ready before accessing elements
 document.addEventListener("DOMContentLoaded", () => {
   const videoElement = document.querySelector("#video");
   const startButton = document.getElementById("start-recording");
   const stopButton = document.getElementById("stop-recording");
-  const playButton = document.getElementById("play-video");
   const recordedVideoElement = document.getElementById("recorded-video");
+  const videoOverlay = document.getElementById("video-overlay");
+  const statusIcon = document.getElementById("status-icon");
+  const statusText = document.getElementById("status-text");
+  const timerElement = document.getElementById("timer");
+  const timerDisplay = document.getElementById("timer-display");
+  const playbackSection = document.getElementById("playback-section");
+  const playbackVideo = document.getElementById("playback-video");
+  const closePlaybackButton = document.getElementById("close-playback");
+
+  let lastRecordedVideoURL = null;
 
   // Require Electron APIs after DOM is ready
   const { ipcRenderer } = require("electron");
   const remote = require("@electron/remote");
+  const { writeFile } = require("fs");
 
   Menu = remote.Menu;
+  const dialog = remote.dialog;
   // Access desktopCapturer through remote
   const desktopCapturerRemote = remote.desktopCapturer;
+
+  // Update status
+  function updateStatus(status, text) {
+    if (statusIcon) {
+      statusIcon.className = `fas fa-circle status-icon ${status}`;
+    }
+    if (statusText) {
+      statusText.textContent = text;
+    }
+  }
+
+  // Timer functions
+  function startTimer() {
+    recordingStartTime = Date.now();
+    if (timerElement) timerElement.style.display = 'flex';
+
+    timerInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+      const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+      const seconds = (elapsed % 60).toString().padStart(2, '0');
+      if (timerDisplay) {
+        timerDisplay.textContent = `${minutes}:${seconds}`;
+      }
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+    if (timerElement) timerElement.style.display = 'none';
+    if (timerDisplay) timerDisplay.textContent = '00:00';
+  }
 
   // Assign function reference, not function call result
   if (recordedVideoElement) {
@@ -70,30 +117,48 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function selectSource(source) {
-    if (startButton) startButton.disabled = false;
-
-    const constraints = {
-      audio: false,
-      video: {
-        mandatory: {
-          chromeMediaSource: "desktop",
-          chromeMediaSourceId: source.id,
+    try {
+      const constraints = {
+        audio: false,
+        video: {
+          mandatory: {
+            chromeMediaSource: "desktop",
+            chromeMediaSourceId: source.id,
+          },
         },
-      },
-    };
+      };
 
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-    if (videoElement) {
-      videoElement.srcObject = stream;
-      videoElement.play();
+      if (videoElement) {
+        videoElement.srcObject = stream;
+        videoElement.play();
+      }
+
+      // Hide video overlay when source is selected
+      if (videoOverlay) {
+        videoOverlay.classList.add('hidden');
+      }
+
+      const options = { mimeType: "video/webm; codecs=vp9" };
+      mediaRecorder = new MediaRecorder(stream, options);
+
+      mediaRecorder.ondataavailable = handleDataAvailable;
+      mediaRecorder.onstop = handleStop;
+
+      if (startButton) startButton.disabled = false;
+
+      updateStatus('ready', `Ready - ${source.name}`);
+
+      console.log(`Successfully captured source: ${source.name}`);
+    } catch (error) {
+      console.error("Error capturing source:", error);
+      alert(
+        `Failed to capture "${source.name}". This window may be protected or not capturable. Please try a different source.`
+      );
+      if (startButton) startButton.disabled = true;
+      updateStatus('', 'Ready');
     }
-
-    const options = { mimeType: "video/webm; codecs=vp9" };
-    mediaRecorder = new MediaRecorder(stream, options);
-
-    mediaRecorder.ondataavailable = handleDataAvailable;
-    mediaRecorder.onstop = handleStop;
   }
 
   function handleDataAvailable(e) {
@@ -101,14 +166,43 @@ document.addEventListener("DOMContentLoaded", () => {
     recordedChunks.push(e.data);
   }
 
-  function handleStop(e) {
+  async function handleStop(e) {
     const blob = new Blob(recordedChunks, {
       type: "video/webm; codecs=vp9",
     });
 
-    const videoURL = URL.createObjectURL(blob);
-    if (recordedVideoElement) recordedVideoElement.src = videoURL;
-    //   if (playButton) playButton.disabled = false;
+    const buffer = Buffer.from(await blob.arrayBuffer());
+
+    const { filePath } = await dialog.showSaveDialog({
+      buttonLabel: "Save video",
+      defaultPath: `recording-${Date.now()}.webm`,
+    });
+
+    if (filePath) {
+      console.log("Video saved to:", filePath);
+      writeFile(filePath, buffer, () => {
+        console.log("video saved successfully!");
+        updateStatus('ready', 'Recording saved! Click below to play.');
+      });
+    } else {
+      updateStatus('ready', 'Recording ready to play.');
+    }
+
+    // Create video URL for playback
+    lastRecordedVideoURL = URL.createObjectURL(blob);
+
+    // Show playback section and load video
+    if (playbackSection && playbackVideo) {
+      playbackVideo.src = lastRecordedVideoURL;
+      playbackSection.style.display = 'block';
+
+      // Scroll to playback section
+      setTimeout(() => {
+        playbackSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
+    }
+
+    recordedChunks = [];
   }
 
   if (startButton) {
@@ -117,6 +211,8 @@ document.addEventListener("DOMContentLoaded", () => {
         mediaRecorder.start();
         startButton.disabled = true;
         if (stopButton) stopButton.disabled = false;
+        updateStatus('recording', 'Recording...');
+        startTimer();
         console.log("media recorder started", mediaRecorder);
       }
     };
@@ -128,14 +224,26 @@ document.addEventListener("DOMContentLoaded", () => {
         mediaRecorder.stop();
         if (startButton) startButton.disabled = false;
         stopButton.disabled = true;
+        updateStatus('ready', 'Processing...');
+        stopTimer();
         console.log("media recorder stopped", mediaRecorder);
       }
     };
   }
 
-  if (playButton) {
-    playButton.onclick = (e) => {
-      if (recordedVideoElement) recordedVideoElement.play();
+  if (closePlaybackButton) {
+    closePlaybackButton.onclick = () => {
+      if (playbackSection) {
+        playbackSection.style.display = 'none';
+      }
+      if (playbackVideo) {
+        playbackVideo.pause();
+        playbackVideo.src = '';
+      }
+      if (lastRecordedVideoURL) {
+        URL.revokeObjectURL(lastRecordedVideoURL);
+        lastRecordedVideoURL = null;
+      }
     };
   }
 });

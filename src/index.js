@@ -11,7 +11,7 @@ const remoteMain = require("@electron/remote/main");
 remoteMain.initialize();
 
 // Handle IPC request for screen sources
-ipcMain.handle("get-sources", async () => {
+ipcMain.handle("get-sources", async (event) => {
   try {
     // On macOS, check screen recording permission
     if (process.platform === "darwin") {
@@ -29,8 +29,24 @@ ipcMain.handle("get-sources", async () => {
       types: ["screen", "window"],
       thumbnailSize: { width: 150, height: 150 },
     });
-    console.log(`Found ${sources.length} sources`);
-    return sources;
+
+    // Get the current window to filter it out
+    const currentWindow = BrowserWindow.fromWebContents(event.sender);
+    const currentWindowTitle = currentWindow ? currentWindow.getTitle() : "";
+
+    // Filter out the app's own window to prevent capture issues
+    const filteredSources = sources.filter(source => {
+      // Always include screen sources
+      if (source.id.startsWith("screen:")) {
+        return true;
+      }
+      // Filter out the current app window
+      return source.name !== currentWindowTitle &&
+        !source.name.includes("electron_screen_recorder");
+    });
+
+    console.log(`Found ${sources.length} sources, filtered to ${filteredSources.length}`);
+    return filteredSources;
   } catch (error) {
     console.error("Error getting sources in main process:", error);
     console.error("Error details:", error.message, error.stack);
@@ -74,7 +90,7 @@ const createWindow = () => {
   mainWindow.loadFile(path.join(__dirname, "index.html"));
 
   // Open the DevTools.
-  mainWindow.webContents.openDevTools();
+  // mainWindow.webContents.openDevTools();
 };
 
 // This method will be called when Electron has finished
