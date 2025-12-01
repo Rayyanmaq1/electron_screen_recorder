@@ -60,17 +60,13 @@ async function selectSource(source) {
     }
     
     // Get the stream for the selected source
-    const constraints = {
+    mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: false,
       video: {
-        mandatory: {
-          chromeMediaSource: 'desktop',
-          chromeMediaSourceId: source.id
-        }
+        chromeMediaSource: 'desktop',
+        chromeMediaSourceId: source.id
       }
-    };
-    
-    mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+    });
     preview.srcObject = mediaStream;
     
     updateStatus(`Selected: ${source.name}`);
@@ -90,17 +86,23 @@ function startRecording() {
   
   recordedChunks = [];
   
-  const options = { mimeType: 'video/webm; codecs=vp9' };
+  // Check codec support and select the best available option
+  let mimeType = 'video/webm; codecs=vp9';
+  if (!MediaRecorder.isTypeSupported(mimeType)) {
+    mimeType = 'video/webm; codecs=vp8';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      mimeType = 'video/webm';
+    }
+  }
   
   try {
-    mediaRecorder = new MediaRecorder(mediaStream, options);
+    mediaRecorder = new MediaRecorder(mediaStream, { mimeType });
   } catch (e) {
-    // Fallback if vp9 is not supported
+    // Fallback without specifying mimeType
     try {
-      options.mimeType = 'video/webm';
-      mediaRecorder = new MediaRecorder(mediaStream, options);
+      mediaRecorder = new MediaRecorder(mediaStream);
     } catch (e2) {
-      updateStatus('MediaRecorder not supported');
+      updateStatus('Recording not supported: MediaRecorder API unavailable');
       return;
     }
   }

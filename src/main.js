@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, desktopCapturer, dialog } = require('electron');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs').promises;
 
 let mainWindow;
 
@@ -61,7 +61,7 @@ ipcMain.handle('save-video', async (event, buffer) => {
   }
 
   try {
-    fs.writeFileSync(filePath, Buffer.from(buffer));
+    await fs.writeFile(filePath, Buffer.from(buffer));
     return { success: true, filePath };
   } catch (error) {
     return { success: false, message: error.message };
